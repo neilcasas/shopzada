@@ -2,7 +2,165 @@ CREATE DATABASE shopzada;
 
 \c shopzada;
 
+CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS ods;
+
+-- ============================================================================
+-- STAGING SCHEMA TABLES
+-- ============================================================================
+-- All columns are VARCHAR to handle mixed formats and dirty data safely
+-- _source_file tracks which file the data came from
+-- _ingested_at tracks when the data was loaded
+
+-- A. Business Department (biz_)
+CREATE TABLE IF NOT EXISTS staging.biz_products_raw (
+    raw_index VARCHAR,
+    product_id VARCHAR,
+    product_name VARCHAR,
+    product_type VARCHAR,
+    price VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+-- B. Customer Management (cust_)
+CREATE TABLE IF NOT EXISTS staging.cust_credit_cards_raw (
+    user_id VARCHAR,
+    name VARCHAR,
+    credit_card_number VARCHAR,
+    issuing_bank VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.cust_user_profiles_raw (
+    user_id VARCHAR,
+    name VARCHAR,
+    gender VARCHAR,
+    birthdate VARCHAR,
+    street VARCHAR,
+    city VARCHAR,
+    state VARCHAR,
+    country VARCHAR,
+    device_address VARCHAR,
+    creation_date VARCHAR,
+    user_type VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.cust_user_jobs_raw (
+    raw_index VARCHAR,
+    user_id VARCHAR,
+    name VARCHAR,
+    job_title VARCHAR,
+    job_level VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+-- C. Enterprise Department (ent_)
+CREATE TABLE IF NOT EXISTS staging.ent_merchants_raw (
+    raw_index VARCHAR,
+    merchant_id VARCHAR,
+    creation_date VARCHAR,
+    name VARCHAR,
+    street VARCHAR,
+    state VARCHAR,
+    city VARCHAR,
+    country VARCHAR,
+    contact_number VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.ent_order_merchants_raw (
+    raw_index VARCHAR,
+    order_id VARCHAR,
+    merchant_id VARCHAR,
+    staff_id VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.ent_staff_raw (
+    raw_index VARCHAR,
+    staff_id VARCHAR,
+    name VARCHAR,
+    job_level VARCHAR,
+    street VARCHAR,
+    state VARCHAR,
+    city VARCHAR,
+    country VARCHAR,
+    contact_number VARCHAR,
+    creation_date VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+-- D. Marketing Department (mkt_)
+CREATE TABLE IF NOT EXISTS staging.mkt_campaigns_raw (
+    raw_index VARCHAR,
+    campaign_id VARCHAR,
+    campaign_name VARCHAR,
+    campaign_description VARCHAR,
+    discount VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.mkt_campaign_transactions_raw (
+    raw_index VARCHAR,
+    transaction_date VARCHAR,
+    campaign_id VARCHAR,
+    order_id VARCHAR,
+    estimated_arrival VARCHAR,
+    availed VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+-- E. Operations Department (ops_)
+CREATE TABLE IF NOT EXISTS staging.ops_order_item_prices_raw (
+    raw_index VARCHAR,
+    order_id VARCHAR,
+    price VARCHAR,
+    quantity VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.ops_order_item_products_raw (
+    raw_index VARCHAR,
+    order_id VARCHAR,
+    product_name VARCHAR,
+    product_id VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.ops_orders_raw (
+    raw_index VARCHAR,
+    order_id VARCHAR,
+    user_id VARCHAR,
+    estimated_arrival VARCHAR,
+    transaction_date VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+CREATE TABLE IF NOT EXISTS staging.ops_order_delays_raw (
+    raw_index VARCHAR,
+    order_id VARCHAR,
+    delay_in_days VARCHAR,
+    _ingested_at TIMESTAMP DEFAULT NOW(),
+    _source_file VARCHAR
+);
+
+-- ============================================================================
+-- ODS SCHEMA TABLES
+-- ============================================================================
+
 
 CREATE TABLE IF NOT EXISTS ods.core_users (
     user_id VARCHAR(255) PRIMARY KEY,
