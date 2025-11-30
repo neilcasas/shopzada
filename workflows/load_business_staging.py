@@ -1,0 +1,228 @@
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from datetime import datetime, timedelta
+import pandas as pd
+import psycopg2
+from sqlalchemy import create_engine
+import os
+from pathlib import Path
+
+default_args = {
+    'owner': 'airflow',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+def get_source_path():
+    """Get the correct path to source files."""
+    base_paths = [
+        '/opt/airflow/source/business-department',
+        '/home/vgr/dev/school/shopzada_3CSD_grp5/source/business-department'
+    ]
+    
+    for path in base_paths:
+        if os.path.exists(path):
+            print(f"Using source path: {path}")
+            return path
+    
+    raise FileNotFoundError(f"Could not find source files in any of: {base_paths}")
+
+def get_db_engine():
+    """Create SQLAlchemy engine for database connection."""
+    return create_engine(
+        f"postgresql+psycopg2://{os.getenv('POSTGRES_USER', 'airflow')}:"
+        f"{os.getenv('POSTGRES_PASSWORD', 'airflow')}@"
+        f"{os.getenv('POSTGRES_HOST', 'postgres')}:"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada"
+    )
+
+def detect_and_load_file(file_path):
+    """Detect file type and load data accordingly."""
+    file_ext = Path(file_path).suffix.lower()
+    file_name = Path(file_path).name
+    
+    print(f"Processing file: {file_name}")
+    
+    try:
+        if file_ext in ['.xlsx', '.xls']:
+            df = pd.read_excel(file_path)
+            print(f"  → Loaded as Excel")
+            
+            # Store the original index as raw_index if it exists
+            if df.index.name or not all(df.index == range(len(df))):
+                df.reset_index(inplace=True)
+                df.rename(columns={df.columns[0]: 'raw_index'}, inplace=True)
+            
+        elif file_ext == '.csv':
+            try:
+                df = pd.read_csv(file_path, index_col=0)
+                df.reset_index(inplace=True)
+                df.rename(columns={df.columns[0]: 'raw_index'}, inplace=True)
+            except:
+                df = pd.read_csv(file_path)
+            print(f"  → Loaded as CSV")
+            
+        else:
+            print(f"  ✗ Unsupported file type: {file_ext}")
+            return None, None
+        
+        print(f"  → Shape: {df.shape}")
+        print(f"  → Columns: {df.columns.tolist()}")
+        return df, file_name
+        
+    except Exception as e:
+        print(f"  ✗ Error loading file: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None, None
+
+def load_business_staging_data(**context):
+    """Load all business department files into staging schema."""
+    source_path = get_source_path()
+    engine = get_db_engine()
+    
+    print("=" * 70)
+    print("LOADING BUSINESS DEPARTMENT DATA TO STAGING SCHEMA")
+    print("=" * 70)
+    
+    # Discover all files
+    all_files = list(Path(source_path).glob('*'))
+    data_files = [f for f in all_files if f.is_file() and not f.name.startswith('.')]
+    
+    print(f"\nFound {len(data_files)} files to process:")
+    for f in data_files:
+        print(f"  - {f.name}")
+    print()
+    
+    load_summary = []
+    
+    for file_path in data_files:
+        df, file_name = detect_and_load_file(str(file_path))
+        
+        if df is None:
+            print(f"⚠ Skipping {file_name}\n")
+            continue
+        
+        # Business department loads to biz_products_raw
+        table_name = 'biz_products_raw'
+        
+        print(f"  → Target table: staging.{table_name}")
+        
+        # Convert all columns to string (staging requirement)
+        for col in df.columns:
+            df[col] = df[col].astype(str)
+        
+        # Add metadata columns
+        df['_source_file'] = file_name
+        df['_ingested_at'] = pd.Timestamp.now()
+        
+        # Expected columns for biz_products_raw
+        expected_columns = ['raw_index', 'product_id', 'product_name', 'product_type', 'price']
+        
+        # Keep only columns that exist in both df and expected columns, plus metadata
+        available_cols = [col for col in expected_columns if col in df.columns]
+        final_cols = available_cols + ['_source_file', '_ingested_at']
+        df_to_load = df[final_cols].copy()
+        
+        print(f"  → Loading {len(df_to_load)} rows with {len(final_cols)} columns")
+        print(f"  → Columns: {final_cols}")
+        
+        try:
+            # Load to staging (append mode - allows multiple files)
+            df_to_load.to_sql(
+                name=table_name,
+                con=engine,
+                schema='staging',
+                if_exists='append',
+                index=False,
+                method='multi'
+            )
+            
+            print(f"  ✓ Successfully loaded to staging.{table_name}")
+            load_summary.append({
+                'file': file_name,
+                'table': table_name,
+                'rows': len(df_to_load),
+                'status': 'SUCCESS'
+            })
+            
+        except Exception as e:
+            print(f"  ✗ Error loading to staging: {str(e)}")
+            load_summary.append({
+                'file': file_name,
+                'table': table_name,
+                'rows': 0,
+                'status': f'FAILED: {str(e)}'
+            })
+        
+        print()
+    
+    # Print summary
+    print("=" * 70)
+    print("LOAD SUMMARY")
+    print("=" * 70)
+    for item in load_summary:
+        status_icon = "✓" if item['status'] == 'SUCCESS' else "✗"
+        print(f"{status_icon} {item['file']} → staging.{item['table']}")
+        print(f"   Rows: {item['rows']} | Status: {item['status']}")
+    print("=" * 70)
+    
+    # Verify data in staging table
+    conn = engine.raw_connection()
+    cursor = conn.cursor()
+    
+    print("\nSTAGING TABLE ROW COUNT:")
+    try:
+        cursor.execute("SELECT COUNT(*) FROM staging.biz_products_raw;")
+        count = cursor.fetchone()[0]
+        print(f"  staging.biz_products_raw: {count} rows")
+    except Exception as e:
+        print(f"  staging.biz_products_raw: Error - {str(e)}")
+    
+    cursor.close()
+    conn.close()
+    
+    # Store summary in XCom
+    context['ti'].xcom_push(key='load_summary', value=load_summary)
+
+def truncate_staging_table(**context):
+    """Truncate staging table before loading fresh data."""
+    engine = get_db_engine()
+    conn = engine.raw_connection()
+    cursor = conn.cursor()
+    
+    print("Truncating business department staging table...")
+    try:
+        cursor.execute("TRUNCATE TABLE staging.biz_products_raw;")
+        print("  ✓ Truncated staging.biz_products_raw")
+    except Exception as e:
+        print(f"  ⚠ Could not truncate staging.biz_products_raw: {str(e)}")
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+with DAG(
+    'load_business_staging',
+    default_args=default_args,
+    description='Load raw business department data (product_list.xlsx) into staging schema',
+    schedule_interval=None,
+    catchup=False,
+    tags=['staging', 'business', 'raw', 'products'],
+) as dag:
+    
+    truncate_task = PythonOperator(
+        task_id='truncate_staging_table',
+        python_callable=truncate_staging_table,
+    )
+    
+    load_task = PythonOperator(
+        task_id='load_business_staging_data',
+        python_callable=load_business_staging_data,
+    )
+    
+    truncate_task >> load_task
