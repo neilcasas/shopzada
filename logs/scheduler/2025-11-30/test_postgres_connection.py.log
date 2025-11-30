@@ -209,3 +209,66 @@
 [2025-11-30T04:00:00.436+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:00:00.436+0000] {dag.py:2941} INFO - Sync 1 DAGs
 [2025-11-30T04:00:00.446+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:00:00.446+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
 [2025-11-30T04:00:00.461+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.055 seconds
+[2025-11-30T04:00:30.503+0000] {processor.py:157} INFO - Started process (PID=303) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:00:30.504+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:00:30.504+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:00:30.504+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:00:30.518+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:00:30.542+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:00:30.541+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:00:30.551+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:00:30.551+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:00:30.567+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.066 seconds
+[2025-11-30T04:01:00.649+0000] {processor.py:157} INFO - Started process (PID=308) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:00.650+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:01:00.651+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:00.650+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:00.660+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:00.680+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:00.680+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:01:00.689+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:00.689+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:01:00.705+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.060 seconds
+[2025-11-30T04:01:30.733+0000] {processor.py:157} INFO - Started process (PID=313) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:30.734+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:01:30.734+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:30.734+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:30.743+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:01:30.762+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:30.762+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:01:30.770+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:01:30.770+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:01:30.784+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.052 seconds
+[2025-11-30T04:02:00.815+0000] {processor.py:157} INFO - Started process (PID=318) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:00.816+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:02:00.817+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:00.817+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:00.825+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:00.846+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:00.846+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:02:00.857+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:00.857+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:02:00.878+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.065 seconds
+[2025-11-30T04:02:30.923+0000] {processor.py:157} INFO - Started process (PID=323) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:30.926+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:02:30.927+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:30.926+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:30.937+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:02:30.962+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:30.962+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:02:30.973+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:02:30.973+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:02:30.992+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.071 seconds
+[2025-11-30T04:03:01.019+0000] {processor.py:157} INFO - Started process (PID=328) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:01.020+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:03:01.020+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:01.020+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:01.032+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:01.052+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:01.052+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:03:01.063+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:01.062+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:03:01.081+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.064 seconds
+[2025-11-30T04:03:31.113+0000] {processor.py:157} INFO - Started process (PID=333) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:31.114+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:03:31.115+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:31.115+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:31.122+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:03:31.140+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:31.140+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:03:31.149+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:03:31.149+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:03:31.165+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.053 seconds
+[2025-11-30T04:04:01.203+0000] {processor.py:157} INFO - Started process (PID=338) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:01.204+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:04:01.204+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:01.204+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:01.211+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:01.231+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:01.231+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:04:01.241+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:01.241+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:04:01.256+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.056 seconds
+[2025-11-30T04:04:31.356+0000] {processor.py:157} INFO - Started process (PID=343) to work on /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:31.357+0000] {processor.py:829} INFO - Processing file /opt/airflow/dags/test_postgres_connection.py for tasks to queue
+[2025-11-30T04:04:31.358+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:31.358+0000] {dagbag.py:536} INFO - Filling up the DagBag from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:31.369+0000] {processor.py:839} INFO - DAG(s) dict_keys(['test_postgres_connection']) retrieved from /opt/airflow/dags/test_postgres_connection.py
+[2025-11-30T04:04:31.391+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:31.391+0000] {dag.py:2941} INFO - Sync 1 DAGs
+[2025-11-30T04:04:31.403+0000] {logging_mixin.py:154} INFO - [2025-11-30T04:04:31.403+0000] {dag.py:3722} INFO - Setting next_dagrun for test_postgres_connection to None, run_after=None
+[2025-11-30T04:04:31.418+0000] {processor.py:179} INFO - Processing /opt/airflow/dags/test_postgres_connection.py took 0.067 seconds
