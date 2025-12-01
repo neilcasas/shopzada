@@ -62,6 +62,10 @@ def detect_and_load_file(file_path):
             print(f"  ✗ Unsupported file type: {file_ext}")
             return None, None
         
+        print(f"  → Shape: {df.shape}")
+        print(f"  → Columns: {df.columns.tolist()}")
+        return df, file_name
+        
     except Exception as e:
         print(f"  ✗ Error loading file: {str(e)}")
         import traceback
@@ -72,10 +76,15 @@ def determine_staging_table(file_name, columns):
     file_name_lower = file_name.lower()
     cols_lower = [col.lower() for col in columns]
     
-    if 'ent_products' in file_name_lower:
-        return 'ent_products_raw'
-    elif 'ent_products' in file_name_lower:
-        return 'ent_products_raw'
+    # Check for merchant data (merchant_data.html or has merchant_id but no order_id)
+    if 'merchant' in file_name_lower and 'order' not in file_name_lower:
+        return 'ent_merchants_raw'
+    # Check for staff data (staff_data.html)
+    elif 'staff' in file_name_lower:
+        return 'ent_staff_raw'
+    # Check for order-merchant relationship data (order_with_merchant)
+    elif 'order' in file_name_lower and 'merchant' in file_name_lower:
+        return 'ent_order_merchants_raw'
     else:
         return None
     
@@ -112,8 +121,19 @@ def load_enterprise_staging_data(**context):
         df['_source_file'] = file_name
         df['_ingested_at'] = pd.Timestamp.now()
         
-        # Expected columns for ent_products_raw
-        expected_columns = ['raw_index', 'product_id', 'product_name', 'product_type', 'price']
+        # Determine expected columns based on target table
+        expected_columns_map = {
+            'ent_merchants_raw': ['raw_index', 'merchant_id', 'creation_date', 'name', 'street', 'state', 'city', 'country', 'contact_number'],
+            'ent_staff_raw': ['raw_index', 'staff_id', 'name', 'job_level', 'street', 'state', 'city', 'country', 'contact_number', 'creation_date'],
+            'ent_order_merchants_raw': ['raw_index', 'order_id', 'merchant_id', 'staff_id']
+        }
+        
+        expected_columns = expected_columns_map.get(table_name, [])
+        
+        # Add raw_index if not present and not in expected columns
+        if 'raw_index' not in df.columns and 'raw_index' in expected_columns:
+            df.reset_index(inplace=True)
+            df.rename(columns={'index': 'raw_index'}, inplace=True)
         
         # Keep only columns that exist in both df and expected columns, plus metadata
         available_cols = [col for col in expected_columns if col in df.columns]
@@ -157,13 +177,14 @@ def load_enterprise_staging_data(**context):
     conn = engine.raw_connection()
     cursor = conn.cursor()
     
-    print("\nSTAGING TABLE ROW COUNT:")
-    try:
-        cursor.execute("SELECT COUNT(*) FROM staging.ent_products_raw;")
-        count = cursor.fetchone()[0]
-        print(f"  staging.ent_products_raw: {count} rows")
-    except Exception as e:
-        print(f"  staging.ent_products_raw: Error - {str(e)}")
+    print("\nSTAGING TABLE ROW COUNTS:")
+    for table in ['ent_merchants_raw', 'ent_staff_raw', 'ent_order_merchants_raw']:
+        try:
+            cursor.execute(f"SELECT COUNT(*) FROM staging.{table};")
+            count = cursor.fetchone()[0]
+            print(f"  staging.{table}: {count} rows")
+        except Exception as e:
+            print(f"  staging.{table}: Error - {str(e)}")
     
     cursor.close()
     conn.close()
@@ -180,10 +201,10 @@ def truncate_staging_table(**context):
     print("Truncating enterprise department staging table...")
 
     tables = [
-        'staging.ent_products_raw',
         'staging.ent_merchants_raw',
-        'staging.ent_staff_raw'
-        ]
+        'staging.ent_staff_raw',
+        'staging.ent_order_merchants_raw'
+    ]
     for table in tables:
         try:
             cursor.execute(f"TRUNCATE TABLE {table};")

@@ -2,3 +2,4 @@
 setup.sh 
 .env
 logs/
+*__pycache__*
