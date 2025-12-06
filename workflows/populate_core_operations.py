@@ -6,6 +6,7 @@ import psycopg2
 from sqlalchemy import create_engine
 import os
 import uuid
+import re
 
 default_args = {
     'owner': 'airflow',
@@ -97,10 +98,16 @@ def process_and_load_orders(**context):
         order_ids = tuple(orders_chunk['order_id'].unique())
         if len(order_ids) == 1:
             delays_query = f"SELECT * FROM staging.ops_order_delays_raw WHERE order_id = '{order_ids[0]}'"
+            merchants_query = f"SELECT * FROM staging.ent_order_merchants_raw WHERE order_id = '{order_ids[0]}'"
+            campaigns_query = f"SELECT * FROM staging.mkt_campaign_transactions_raw WHERE order_id = '{order_ids[0]}'"
         else:
             delays_query = f"SELECT * FROM staging.ops_order_delays_raw WHERE order_id IN {order_ids}"
+            merchants_query = f"SELECT * FROM staging.ent_order_merchants_raw WHERE order_id IN {order_ids}"
+            campaigns_query = f"SELECT * FROM staging.mkt_campaign_transactions_raw WHERE order_id IN {order_ids}"
         
         delays = pd.read_sql(delays_query, engine)
+        merchants_df = pd.read_sql(merchants_query, engine)
+        campaigns_df = pd.read_sql(campaigns_query, engine)
         
         # Clean delays
         if len(delays) > 0:
@@ -111,10 +118,40 @@ def process_and_load_orders(**context):
             delays['delay_in_days'] = delays['delay_in_days'].astype(int)
             delays = delays.drop_duplicates(subset=['order_id'], keep='first')
         
+        # Clean merchants/staff data
+        if len(merchants_df) > 0:
+            merchants_df = merchants_df[merchants_df['order_id'].notna()]
+            merchants_df['order_id'] = merchants_df['order_id'].astype(str).str.strip()
+            merchants_df['merchant_id'] = merchants_df['merchant_id'].astype(str).str.strip()
+            merchants_df['staff_id'] = merchants_df['staff_id'].astype(str).str.strip()
+            merchants_df = merchants_df.drop_duplicates(subset=['order_id'], keep='first')
+        
+        # Clean campaigns data
+        if len(campaigns_df) > 0:
+            campaigns_df = campaigns_df[campaigns_df['order_id'].notna()]
+            campaigns_df['order_id'] = campaigns_df['order_id'].astype(str).str.strip()
+            campaigns_df['campaign_id'] = campaigns_df['campaign_id'].astype(str).str.strip()
+            campaigns_df['availed'] = pd.to_numeric(campaigns_df['availed'], errors='coerce').fillna(0).astype(int).astype(bool)
+            campaigns_df = campaigns_df.drop_duplicates(subset=['order_id'], keep='first')
+        
         # Merge with delays
         orders_merged = orders_chunk.merge(
             delays[['order_id', 'delay_in_days']] if len(delays) > 0 else pd.DataFrame(columns=['order_id', 'delay_in_days']),
             on='order_id', 
+            how='left'
+        )
+        
+        # Merge with merchants/staff
+        orders_merged = orders_merged.merge(
+            merchants_df[['order_id', 'merchant_id', 'staff_id']] if len(merchants_df) > 0 else pd.DataFrame(columns=['order_id', 'merchant_id', 'staff_id']),
+            on='order_id',
+            how='left'
+        )
+        
+        # Merge with campaigns
+        orders_merged = orders_merged.merge(
+            campaigns_df[['order_id', 'campaign_id', 'availed']] if len(campaigns_df) > 0 else pd.DataFrame(columns=['order_id', 'campaign_id', 'availed']),
+            on='order_id',
             how='left'
         )
         
@@ -136,6 +173,16 @@ def process_and_load_orders(**context):
                 return val.to_pydatetime()
             return val
         
+        def to_python_str(val):
+            if pd.isna(val):
+                return None
+            return str(val).strip() if str(val).strip().lower() != 'nan' else None
+        
+        def to_python_bool(val):
+            if pd.isna(val):
+                return None
+            return bool(val)
+        
         # Insert orders (batch insert for better performance)
         insert_batch = []
         for _, row in orders_merged.iterrows():
@@ -146,7 +193,11 @@ def process_and_load_orders(**context):
                 to_python_value(row['estimated_arrival']),
                 to_python_value(row['actual_arrival']),
                 row['delay_in_days'],
-                row['is_delayed']
+                row['is_delayed'],
+                to_python_str(row.get('merchant_id')),
+                to_python_str(row.get('staff_id')),
+                to_python_str(row.get('campaign_id')),
+                to_python_bool(row.get('availed'))
             ))
         
         # Use executemany for better performance
@@ -154,7 +205,7 @@ def process_and_load_orders(**context):
             cursor.executemany("""
                 INSERT INTO ods.core_orders 
                 (order_id, user_id, transaction_date, estimated_arrival, actual_arrival, delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, NULL, NULL, NULL)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (order_id) DO NOTHING
             """, insert_batch)
             orders_inserted += len(insert_batch)
@@ -169,7 +220,7 @@ def process_and_load_orders(**context):
                     cursor.execute("""
                         INSERT INTO ods.core_orders 
                         (order_id, user_id, transaction_date, estimated_arrival, actual_arrival, delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, NULL, NULL, NULL)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (order_id) DO NOTHING
                     """, (
                         row['order_id'],
@@ -178,7 +229,11 @@ def process_and_load_orders(**context):
                         to_python_value(row['estimated_arrival']),
                         to_python_value(row['actual_arrival']),
                         row['delay_in_days'],
-                        row['is_delayed']
+                        row['is_delayed'],
+                        to_python_str(row.get('merchant_id')),
+                        to_python_str(row.get('staff_id')),
+                        to_python_str(row.get('campaign_id')),
+                        to_python_bool(row.get('availed'))
                     ))
                     conn.commit()
                     orders_inserted += 1
@@ -244,7 +299,23 @@ def process_and_load_line_items(**context):
         prices_chunk['price'] = prices_chunk['price'].str.replace('₱', '', regex=False)
         prices_chunk['price'] = pd.to_numeric(prices_chunk['price'], errors='coerce')
         
-        prices_chunk['quantity'] = pd.to_numeric(prices_chunk['quantity'], errors='coerce')
+        # Extract numeric values from quantity strings like '4PC', '4pcs', '2PCs', '4pieces'
+        def extract_quantity(val):
+            if pd.isna(val):
+                return None
+            val_str = str(val).strip()
+            # Try direct numeric conversion first
+            try:
+                return int(float(val_str))
+            except ValueError:
+                pass
+            # Extract leading digits from strings like '4PC', '4pcs', '2PCs', '4pieces'
+            match = re.match(r'^(\d+)', val_str)
+            if match:
+                return int(match.group(1))
+            return None
+        
+        prices_chunk['quantity'] = prices_chunk['quantity'].apply(extract_quantity)
         
         prices_chunk = prices_chunk[prices_chunk['price'].notna() & (prices_chunk['price'] > 0)]
         prices_chunk = prices_chunk[prices_chunk['quantity'].notna() & (prices_chunk['quantity'] > 0)]
