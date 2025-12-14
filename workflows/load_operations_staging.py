@@ -2,11 +2,14 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import psycopg2
+import psycopg2.extras
 from sqlalchemy import create_engine
 import os
 from pathlib import Path
 import pickle
+from io import StringIO
 
 def normalize_column_name(column_name):
     """Normalize column names: lowercase, replace spaces/dashes with underscores."""
@@ -42,12 +45,26 @@ def get_source_path():
     raise FileNotFoundError(f"Could not find source files in any of: {base_paths}")
 
 def get_db_engine():
-    """Create SQLAlchemy engine for database connection."""
+    """Create SQLAlchemy engine with connection pooling for better performance."""
     return create_engine(
         f"postgresql+psycopg2://{os.getenv('POSTGRES_USER', 'airflow')}:"
         f"{os.getenv('POSTGRES_PASSWORD', 'airflow')}@"
         f"{os.getenv('POSTGRES_HOST', 'postgres')}:"
-        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada",
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True
+    )
+
+
+def get_db_connection():
+    """Get raw psycopg2 connection for fast bulk inserts."""
+    return psycopg2.connect(
+        host=os.getenv('POSTGRES_HOST', 'postgres'),
+        port=os.getenv('POSTGRES_PORT', '5432'),
+        database='shopzada',
+        user=os.getenv('POSTGRES_USER', 'airflow'),
+        password=os.getenv('POSTGRES_PASSWORD', 'airflow')
     )
 
 def detect_and_load_file(file_path):
@@ -258,39 +275,26 @@ def load_operations_staging_data(**context):
         print(f"  → Columns: {final_cols}")
         
         try:
-            # Load to staging with chunking for large files
-            chunk_size = 10000
-            total_rows = len(df_to_load)
+            # OPTIMIZED: Use COPY command via StringIO (fastest PostgreSQL bulk insert)
+            conn = get_db_connection()
+            cur = conn.cursor()
             
-            if total_rows > chunk_size:
-                print(f"  → Large file detected, loading in chunks of {chunk_size}")
-                
-                for i in range(0, total_rows, chunk_size):
-                    chunk = df_to_load.iloc[i:i+chunk_size]
-                    chunk.to_sql(
-                        name=table_name,
-                        con=engine,
-                        schema='staging',
-                        if_exists='append',
-                        index=False,
-                        method='multi'
-                    )
-                    
-                    # Progress indicator
-                    progress = min(i + chunk_size, total_rows)
-                    print(f"     Progress: {progress:,}/{total_rows:,} rows ({progress/total_rows*100:.1f}%)")
-            else:
-                # Small file, load all at once
-                df_to_load.to_sql(
-                    name=table_name,
-                    con=engine,
-                    schema='staging',
-                    if_exists='append',
-                    index=False,
-                    method='multi'
-                )
+            # Create StringIO buffer
+            buffer = StringIO()
+            df_to_load.to_csv(buffer, index=False, header=False, sep='\t', na_rep='\\N')
+            buffer.seek(0)
             
-            print(f"  ✓ Successfully loaded to staging.{table_name}")
+            # Use COPY command (fastest possible insert method)
+            cur.copy_expert(
+                f"COPY staging.{table_name} ({', '.join(final_cols)}) FROM STDIN WITH (FORMAT CSV, DELIMITER E'\\t', NULL '\\N')",
+                buffer
+            )
+            conn.commit()
+            
+            cur.close()
+            conn.close()
+            
+            print(f"  ✓ Successfully loaded {len(df_to_load):,} rows to staging.{table_name} (COPY)")
             load_summary.append({
                 'file': file_name,
                 'table': table_name,

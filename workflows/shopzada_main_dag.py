@@ -165,22 +165,22 @@ with DAG(
     
     # After staging loads, trigger the streaming pipeline
     # This processes staging → ODS → DW → Facts in parallel streams
+    # MUST wait for completion so ODS data is ready for fact_campaign_response
     ops_streaming = TriggerDagRunOperator(
         task_id='ops_streaming_pipeline',
         trigger_dag_id='stream_operations_pipeline',
-        wait_for_completion=False,  # Don't wait - let it run in parallel!
+        wait_for_completion=True,  # Wait for ODS to be populated
         poke_interval=10,
     )
     ops_complete = EmptyOperator(task_id='ops_complete')
 
     # =========================================================================
-    # FACT TABLES FOR NON-OPERATIONS (Campaign Response)
-    # Note: Operations facts are handled by the streaming pipeline
+    # FACT TABLES - Run after ALL departments complete (including Operations)
+    # Operations must complete so core_orders is populated for campaign response
     # =========================================================================
-    all_dims_complete = EmptyOperator(task_id='all_dims_complete')
+    all_complete = EmptyOperator(task_id='all_complete')
 
-    # Only campaign response fact needs to wait for all dims
-    # Operations facts (fact_sales, fact_orders) are handled by streaming pipeline
+    # Campaign response fact needs core_orders from operations + all dimensions
     fact_campaign_response = TriggerDagRunOperator(
         task_id='load_fact_campaign_response',
         trigger_dag_id='populate_fact_campaign_response',
@@ -210,13 +210,12 @@ with DAG(
     # Marketing pipeline: staging → ODS → DW
     mkt_staging >> mkt_ods >> mkt_dw >> mkt_complete
 
-    # Operations pipeline: staging → streaming (parallel processing)
-    # The streaming pipeline handles staging→ODS→DW→Facts in parallel!
+    # Operations pipeline: staging → streaming (handles ODS → DW → Facts)
     ops_staging >> ops_streaming >> ops_complete
 
-    # Non-operations dimensions must complete before campaign response fact
-    [biz_complete, cust_complete, ent_complete, mkt_complete] >> all_dims_complete
-    all_dims_complete >> fact_campaign_response >> end
+    # ALL departments must complete before fact_campaign_response
+    # This ensures core_orders is populated (from ops) + all dimensions exist
+    [biz_complete, cust_complete, ent_complete, mkt_complete, ops_complete] >> all_complete
     
-    # Operations can complete independently (streaming handles its own facts)
-    ops_complete >> end
+    # Fact campaign response is the final step before end
+    all_complete >> fact_campaign_response >> end

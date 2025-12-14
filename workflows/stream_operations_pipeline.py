@@ -23,6 +23,7 @@ from airflow.operators.python import PythonOperator
 from airflow.sensors.python import PythonSensor
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 import os
 import psycopg2
@@ -39,18 +40,22 @@ default_args = {
     'retry_delay': timedelta(minutes=2),
 }
 
-# Configuration
+# Configuration - OPTIMIZED
 MIN_CHUNKS_TO_START_NEXT_LAYER = 1  # Start next layer after this many chunks are ready
-CHUNK_SIZE = 10000  # Process 10k records at a time for faster streaming
+CHUNK_SIZE = 50000  # Increased: Process 50k records at a time for faster streaming
+BULK_INSERT_BATCH = 10000  # Optimal batch size for execute_values
 
 
 def get_db_engine():
-    """Create SQLAlchemy engine for database connection."""
+    """Create SQLAlchemy engine with connection pooling for better performance."""
     return create_engine(
         f"postgresql+psycopg2://{os.getenv('POSTGRES_USER', 'airflow')}:"
         f"{os.getenv('POSTGRES_PASSWORD', 'airflow')}@"
         f"{os.getenv('POSTGRES_HOST', 'postgres')}:"
-        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada",
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True
     )
 
 
@@ -105,6 +110,33 @@ def setup_tracking_table(**context):
     conn.commit()
     print("  ✓ Tracking table cleared for fresh run")
     
+    # OPTIMIZATION: Create indexes on staging tables for faster joins
+    print("  Creating staging indexes for faster queries...")
+    indexes = [
+        ("staging.ops_orders_raw", "order_id", "idx_stg_orders_oid"),
+        ("staging.ops_orders_raw", "user_id", "idx_stg_orders_uid"),
+        ("staging.ops_order_delays_raw", "order_id", "idx_stg_delays_oid"),
+        ("staging.ops_order_item_prices_raw", "order_id", "idx_stg_prices_oid"),
+        ("staging.ops_order_item_products_raw", "order_id", "idx_stg_products_oid"),
+        ("staging.ent_order_merchants_raw", "order_id", "idx_stg_merchants_oid"),
+        ("staging.mkt_campaign_transactions_raw", "order_id", "idx_stg_campaigns_oid"),
+    ]
+    for table, column, idx_name in indexes:
+        try:
+            cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column});")
+        except:
+            pass
+    conn.commit()
+    
+    # Analyze tables for better query planning
+    for table, _, _ in indexes:
+        try:
+            cur.execute(f"ANALYZE {table};")
+        except:
+            pass
+    conn.commit()
+    print("  ✓ Staging indexes created")
+    
     cur.close()
     conn.close()
     print("=" * 70)
@@ -123,22 +155,18 @@ def analyze_source_data_and_create_chunks(**context):
     print("ANALYZING SOURCE DATA & CREATING CHUNK PLAN")
     print("=" * 70)
     
-    # Check staging table for date ranges
+    # Check staging table for date ranges - use pandas for more flexible date parsing
     try:
-        date_stats = pd.read_sql("""
-            SELECT 
-                MIN(transaction_date::DATE) as min_date,
-                MAX(transaction_date::DATE) as max_date,
-                COUNT(*) as total_orders
+        # Read transaction dates and parse with pandas (more flexible than SQL)
+        orders_dates = pd.read_sql("""
+            SELECT transaction_date
             FROM staging.ops_orders_raw
             WHERE transaction_date IS NOT NULL
               AND transaction_date != ''
-              AND transaction_date !~ '[^0-9-/: ]'
         """, engine)
         
-        if date_stats.empty or pd.isna(date_stats['min_date'].iloc[0]):
-            print("  ⚠ No valid dates found in staging. Loading all data as single chunk.")
-            # Create single chunk for all data
+        if len(orders_dates) == 0:
+            print("  ⚠ No orders found in staging. Loading all data as single chunk.")
             cur.execute("""
                 INSERT INTO pipeline.ops_chunk_tracker 
                 (date_range_start, date_range_end, status, order_count)
@@ -149,12 +177,34 @@ def analyze_source_data_and_create_chunks(**context):
             conn.close()
             return
         
-        min_date = date_stats['min_date'].iloc[0]
-        max_date = date_stats['max_date'].iloc[0]
-        total_orders = date_stats['total_orders'].iloc[0]
+        # Parse dates using pandas with mixed format support
+        orders_dates['parsed_date'] = pd.to_datetime(
+            orders_dates['transaction_date'], 
+            format='mixed', 
+            errors='coerce'
+        )
+        
+        # Filter out invalid dates
+        valid_dates = orders_dates[orders_dates['parsed_date'].notna()]['parsed_date']
+        
+        if len(valid_dates) == 0:
+            print("  ⚠ No valid dates found in staging. Loading all data as single chunk.")
+            cur.execute("""
+                INSERT INTO pipeline.ops_chunk_tracker 
+                (date_range_start, date_range_end, status, order_count)
+                VALUES (NULL, NULL, 'pending_staging', 0)
+            """)
+            conn.commit()
+            cur.close()
+            conn.close()
+            return
+        
+        min_date = valid_dates.min().date()
+        max_date = valid_dates.max().date()
+        total_orders = len(valid_dates)
         
         print(f"  Date range: {min_date} to {max_date}")
-        print(f"  Total orders: {total_orders:,}")
+        print(f"  Total orders with valid dates: {total_orders:,}")
         
         # Create weekly chunks, ordered by date DESC (latest first)
         # This ensures dashboard shows latest data first
@@ -166,21 +216,20 @@ def analyze_source_data_and_create_chunks(**context):
         while current_end >= min_dt:
             chunk_start = max(current_start, min_dt)
             
-            # Count orders in this chunk
-            cur.execute("""
-                SELECT COUNT(*) FROM staging.ops_orders_raw
-                WHERE transaction_date::DATE BETWEEN %s AND %s
-            """, (chunk_start.date(), current_end.date()))
-            chunk_count = cur.fetchone()[0]
+            # Count orders in this chunk using pandas-parsed dates
+            chunk_mask = (valid_dates >= pd.Timestamp(chunk_start)) & (valid_dates <= pd.Timestamp(current_end))
+            chunk_count = chunk_mask.sum()
             
             if chunk_count > 0:
+                start_dt = chunk_start.date() if hasattr(chunk_start, 'date') else chunk_start
+                end_dt = current_end.date() if hasattr(current_end, 'date') else current_end
                 cur.execute("""
                     INSERT INTO pipeline.ops_chunk_tracker 
                     (date_range_start, date_range_end, status, order_count)
                     VALUES (%s, %s, 'pending_staging', %s)
-                """, (chunk_start.date(), current_end.date(), chunk_count))
+                """, (start_dt, end_dt, int(chunk_count)))
                 chunks_created += 1
-                print(f"    Chunk {chunks_created}: {chunk_start.date()} to {current_end.date()} ({chunk_count:,} orders)")
+                print(f"    Chunk {chunks_created}: {start_dt} to {end_dt} ({chunk_count:,} orders)")
             
             # Move to previous week
             current_end = current_start - timedelta(days=1)
@@ -294,14 +343,23 @@ def process_staging_chunks(**context):
     for chunk_id, start_date, end_date, order_count in chunks:
         print(f"\n  Processing chunk {chunk_id}: {start_date} to {end_date}")
         
-        # Validate data exists in staging
+        # Validate data exists in staging - use CAST with error handling
         if start_date and end_date:
+            # Use a more flexible date casting approach
             cur.execute("""
                 SELECT COUNT(*) FROM staging.ops_orders_raw
-                WHERE transaction_date::DATE BETWEEN %s AND %s
+                WHERE transaction_date IS NOT NULL 
+                  AND transaction_date != ''
+                  AND CAST(
+                      CASE 
+                          WHEN transaction_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' 
+                          THEN SUBSTRING(transaction_date FROM 1 FOR 10)
+                          ELSE NULL 
+                      END AS DATE
+                  ) BETWEEN %s AND %s
             """, (start_date, end_date))
         else:
-            cur.execute("SELECT COUNT(*) FROM staging.ops_orders_raw")
+            cur.execute("SELECT COUNT(*) FROM staging.ops_orders_raw WHERE order_id IS NOT NULL")
         
         actual_count = cur.fetchone()[0]
         
@@ -366,9 +424,15 @@ def process_ods_chunks(**context):
         print(f"\n  Processing chunk {chunk_id}: {start_date} to {end_date} → ODS")
         
         try:
-            # Build date filter
+            # Build date filter - use substring extraction for ISO format dates
             if start_date and end_date:
-                date_filter = f"AND o.transaction_date::DATE BETWEEN '{start_date}' AND '{end_date}'"
+                date_filter = f"""AND CAST(
+                    CASE 
+                        WHEN o.transaction_date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' 
+                        THEN SUBSTRING(o.transaction_date FROM 1 FOR 10)
+                        ELSE NULL 
+                    END AS DATE
+                ) BETWEEN '{start_date}' AND '{end_date}'"""
             else:
                 date_filter = ""
             
@@ -449,32 +513,52 @@ def process_ods_chunks(**context):
             else:
                 orders_df['availed'] = False
             
-            # Insert into ODS
+            # OPTIMIZED: Bulk insert using execute_values (10-50x faster than row-by-row)
+            def to_val(x):
+                """Convert pandas/numpy values to Python native types."""
+                if pd.isna(x):
+                    return None
+                if isinstance(x, pd.Timestamp):
+                    return x.to_pydatetime()
+                if isinstance(x, (np.integer, np.floating)):
+                    return x.item()
+                return x
+            
+            # Prepare records as list of tuples
+            orders_records = [
+                (
+                    row['order_id'],
+                    row['user_id'],
+                    to_val(row['transaction_date']),
+                    to_val(row['estimated_arrival']),
+                    to_val(row.get('actual_arrival')),
+                    int(row['delay_in_days']),
+                    bool(row['is_delayed']),
+                    to_val(row.get('merchant_id')),
+                    to_val(row.get('staff_id')),
+                    to_val(row.get('campaign_id')),
+                    bool(row.get('availed', False))
+                )
+                for _, row in orders_df.iterrows()
+            ]
+            
+            # Bulk insert in batches
             inserted = 0
-            for _, row in orders_df.iterrows():
-                try:
-                    cur.execute("""
-                        INSERT INTO ods.core_orders 
-                        (order_id, user_id, transaction_date, estimated_arrival, actual_arrival,
-                         delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (order_id) DO NOTHING
-                    """, (
-                        row['order_id'],
-                        row['user_id'],
-                        row['transaction_date'] if pd.notna(row['transaction_date']) else None,
-                        row['estimated_arrival'] if pd.notna(row['estimated_arrival']) else None,
-                        row['actual_arrival'] if pd.notna(row.get('actual_arrival')) else None,
-                        row['delay_in_days'],
-                        row['is_delayed'],
-                        row.get('merchant_id'),
-                        row.get('staff_id'),
-                        row.get('campaign_id'),
-                        row.get('availed', False)
-                    ))
-                    inserted += 1
-                except Exception as e:
-                    pass  # Skip individual row errors
+            for i in range(0, len(orders_records), BULK_INSERT_BATCH):
+                batch = orders_records[i:i + BULK_INSERT_BATCH]
+                psycopg2.extras.execute_values(
+                    cur,
+                    """
+                    INSERT INTO ods.core_orders 
+                    (order_id, user_id, transaction_date, estimated_arrival, actual_arrival,
+                     delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
+                    VALUES %s
+                    ON CONFLICT (order_id) DO NOTHING
+                    """,
+                    batch,
+                    page_size=BULK_INSERT_BATCH
+                )
+                inserted += len(batch)
             
             conn.commit()
             
@@ -508,10 +592,16 @@ def process_line_items_for_chunk(engine, conn, cur, start_date, end_date):
     """Process line items for a specific date range chunk."""
     try:
         if start_date and end_date:
-            # Get order_ids for this date range
+            # Get order_ids for this date range using flexible date parsing
             order_ids_df = pd.read_sql(f"""
                 SELECT DISTINCT order_id FROM staging.ops_orders_raw
-                WHERE transaction_date::DATE BETWEEN '{start_date}' AND '{end_date}'
+                WHERE CAST(
+                    CASE 
+                        WHEN transaction_date ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' 
+                        THEN SUBSTRING(transaction_date FROM 1 FOR 10)
+                        ELSE NULL 
+                    END AS DATE
+                ) BETWEEN '{start_date}' AND '{end_date}'
                   AND order_id IS NOT NULL AND order_id != ''
             """, engine)
             
@@ -526,18 +616,32 @@ def process_line_items_for_chunk(engine, conn, cur, start_date, end_date):
         else:
             order_filter = "WHERE p.order_id IS NOT NULL"
         
-        # Read line items
+        # Read line items - Use ROW_NUMBER to match prices and products when raw_index is NULL
+        # This handles parquet files that don't have raw_index
         line_items_df = pd.read_sql(f"""
+            WITH prices_numbered AS (
+                SELECT 
+                    order_id, price, quantity,
+                    ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY _ingested_at, price) as row_num
+                FROM staging.ops_order_item_prices_raw p
+                {order_filter.replace('p.order_id', 'order_id')}
+            ),
+            products_numbered AS (
+                SELECT 
+                    order_id, product_id, product_name,
+                    ROW_NUMBER() OVER (PARTITION BY order_id ORDER BY _ingested_at, product_id) as row_num
+                FROM staging.ops_order_item_products_raw
+                {order_filter.replace('p.order_id', 'order_id')}
+            )
             SELECT 
                 p.order_id,
                 p.price,
                 p.quantity,
                 pr.product_id,
                 pr.product_name
-            FROM staging.ops_order_item_prices_raw p
-            LEFT JOIN staging.ops_order_item_products_raw pr 
-                ON p.order_id = pr.order_id AND p.raw_index = pr.raw_index
-            {order_filter}
+            FROM prices_numbered p
+            LEFT JOIN products_numbered pr 
+                ON p.order_id = pr.order_id AND p.row_num = pr.row_num
         """, engine)
         
         if len(line_items_df) == 0:
@@ -557,32 +661,47 @@ def process_line_items_for_chunk(engine, conn, cur, start_date, end_date):
         
         line_items_df['quantity'] = line_items_df['quantity'].apply(extract_qty)
         
-        # Generate unique line_item_ids
+        # Generate unique line_item_ids (vectorized - much faster than apply)
         line_items_df['item_num'] = line_items_df.groupby('order_id').cumcount()
-        line_items_df['line_item_id'] = line_items_df.apply(
-            lambda row: f"{row['order_id']}_item_{row['item_num']}", axis=1
-        )
+        line_items_df['line_item_id'] = line_items_df['order_id'] + '_item_' + line_items_df['item_num'].astype(str)
         
-        # Insert line items
+        # Filter valid rows (vectorized)
+        valid_mask = (line_items_df['price'].notna()) & (line_items_df['price'] > 0)
+        valid_items = line_items_df[valid_mask]
+        
+        # Clean product_id (vectorized)
+        valid_items = valid_items.copy()
+        valid_items['product_id'] = valid_items['product_id'].astype(str).str.strip()
+        valid_items['product_id'] = valid_items['product_id'].replace(['nan', 'None', 'none', ''], np.nan)
+        
+        # OPTIMIZED: Bulk insert using execute_values
+        line_items_records = [
+            (
+                row['line_item_id'],
+                row['order_id'],
+                row['product_id'] if pd.notna(row['product_id']) else None,
+                int(row['quantity']),
+                float(row['price'])
+            )
+            for _, row in valid_items.iterrows()
+        ]
+        
+        # Bulk insert in batches
         inserted = 0
-        for _, row in line_items_df.iterrows():
-            if pd.notna(row['price']) and row['price'] > 0:
-                try:
-                    cur.execute("""
-                        INSERT INTO ods.core_line_items 
-                        (line_item_id, order_id, product_id, quantity, price)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON CONFLICT (line_item_id) DO NOTHING
-                    """, (
-                        row['line_item_id'],
-                        row['order_id'],
-                        str(row['product_id']).strip() if pd.notna(row['product_id']) else None,
-                        row['quantity'],
-                        float(row['price'])
-                    ))
-                    inserted += 1
-                except:
-                    pass
+        for i in range(0, len(line_items_records), BULK_INSERT_BATCH):
+            batch = line_items_records[i:i + BULK_INSERT_BATCH]
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO ods.core_line_items 
+                (line_item_id, order_id, product_id, quantity, price)
+                VALUES %s
+                ON CONFLICT (line_item_id) DO NOTHING
+                """,
+                batch,
+                page_size=BULK_INSERT_BATCH
+            )
+            inserted += len(batch)
         
         conn.commit()
         return inserted
@@ -707,9 +826,10 @@ def process_fact_tables_streaming(**context):
         
         try:
             if start_date and end_date:
+                # ODS table has proper TIMESTAMP columns, so ::DATE cast works
                 date_filter = f"WHERE o.transaction_date::DATE BETWEEN '{start_date}' AND '{end_date}'"
             else:
-                date_filter = ""
+                date_filter = "WHERE o.transaction_date IS NOT NULL"
             
             # Process fact_orders
             orders_df = pd.read_sql(f"""
@@ -763,7 +883,7 @@ def process_fact_tables_streaming(**context):
                     WHERE o.transaction_date::DATE BETWEEN '{start_date}' AND '{end_date}'
                 """
             else:
-                sales_filter = ""
+                sales_filter = "WHERE o.transaction_date IS NOT NULL"
             
             line_items_df = pd.read_sql(f"""
                 SELECT li.order_id, li.product_id, li.quantity, li.price,
@@ -874,11 +994,11 @@ def verify_streaming_results(**context):
 with DAG(
     'stream_operations_pipeline',
     default_args=default_args,
-    description='Streaming operations pipeline - processes chunks in parallel across all layers',
+    description='OPTIMIZED: Streaming operations pipeline with bulk inserts and vectorized transforms',
     schedule_interval=None,
     catchup=False,
-    tags=['operations', 'streaming', 'parallel', 'pipeline'],
-    max_active_tasks=4,  # Allow parallel processing
+    tags=['operations', 'streaming', 'parallel', 'pipeline', 'optimized'],
+    max_active_tasks=6,  # Increased for better parallel processing
 ) as dag:
     
     # Setup
@@ -898,13 +1018,14 @@ with DAG(
         python_callable=process_staging_chunks,
     )
     
-    # Sensor: Wait for staging data
+    # Sensor: Wait for staging data (reduced polling for less overhead)
     sensor_staging = PythonSensor(
         task_id='wait_for_staging_data',
         python_callable=check_staging_ready,
-        poke_interval=5,
-        timeout=60,
+        poke_interval=2,
+        timeout=30,
         soft_fail=True,
+        mode='reschedule',  # Use reschedule mode to free worker slots
     )
     
     # Layer 2: Process ODS
@@ -913,13 +1034,14 @@ with DAG(
         python_callable=process_ods_chunks,
     )
     
-    # Sensor: Wait for ODS data
+    # Sensor: Wait for ODS data (reduced polling for less overhead)
     sensor_ods = PythonSensor(
         task_id='wait_for_ods_data',
         python_callable=check_ods_ready,
-        poke_interval=5,
-        timeout=60,
+        poke_interval=2,
+        timeout=30,
         soft_fail=True,
+        mode='reschedule',  # Use reschedule mode to free worker slots
     )
     
     # Layer 3: Prepare DW dims
@@ -933,13 +1055,14 @@ with DAG(
         python_callable=process_dw_dims_for_chunks,
     )
     
-    # Sensor: Wait for dims
+    # Sensor: Wait for dims (reduced polling for less overhead)
     sensor_dims = PythonSensor(
         task_id='wait_for_dims_ready',
         python_callable=check_dims_ready,
-        poke_interval=5,
-        timeout=60,
+        poke_interval=2,
+        timeout=30,
         soft_fail=True,
+        mode='reschedule',  # Use reschedule mode to free worker slots
     )
     
     # Layer 4: Process facts

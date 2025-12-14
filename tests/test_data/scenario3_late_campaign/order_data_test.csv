@@ -1,0 +1,4 @@
+,order_id,user_id,estimated arrival,transaction_date
+0,TEST-ORD-CAMP-001,USER00001,10days,2024-12-14
+1,TEST-ORD-CAMP-002,USER00002,12days,2024-12-14
+2,TEST-ORD-CAMP-003,USER00003,8days,2024-12-14

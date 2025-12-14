@@ -1,0 +1,3 @@
+,order_id,user_id,estimated arrival,transaction_date
+0,TEST-ORD-NEWCUST-001,USER99999,10days,2024-12-14
+1,TEST-ORD-NEWCUST-002,USER99998,12days,2024-12-14

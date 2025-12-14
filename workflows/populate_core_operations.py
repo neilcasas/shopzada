@@ -2,11 +2,16 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pandas as pd
+import numpy as np
 import psycopg2
+import psycopg2.extras
 from sqlalchemy import create_engine
 import os
 import uuid
 import re
+
+# Optimized configuration
+BULK_INSERT_BATCH = 10000  # Optimal batch size for execute_values
 
 default_args = {
     'owner': 'airflow',
@@ -19,12 +24,15 @@ default_args = {
 }
 
 def get_db_engine():
-    """Create SQLAlchemy engine for database connection."""
+    """Create SQLAlchemy engine with connection pooling for better performance."""
     return create_engine(
         f"postgresql+psycopg2://{os.getenv('POSTGRES_USER', 'airflow')}:"
         f"{os.getenv('POSTGRES_PASSWORD', 'airflow')}@"
         f"{os.getenv('POSTGRES_HOST', 'postgres')}:"
-        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada"
+        f"{os.getenv('POSTGRES_PORT', '5432')}/shopzada",
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True
     )
 
 def process_and_load_orders(**context):
@@ -202,46 +210,26 @@ def process_and_load_orders(**context):
         
         # Use executemany for better performance
         try:
-            cursor.executemany("""
-                INSERT INTO ods.core_orders 
-                (order_id, user_id, transaction_date, estimated_arrival, actual_arrival, delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (order_id) DO NOTHING
-            """, insert_batch)
+            # OPTIMIZED: Use execute_values (10x faster than executemany)
+            for i in range(0, len(insert_batch), BULK_INSERT_BATCH):
+                batch = insert_batch[i:i + BULK_INSERT_BATCH]
+                psycopg2.extras.execute_values(
+                    cursor,
+                    """
+                    INSERT INTO ods.core_orders 
+                    (order_id, user_id, transaction_date, estimated_arrival, actual_arrival, delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
+                    VALUES %s
+                    ON CONFLICT (order_id) DO NOTHING
+                    """,
+                    batch,
+                    page_size=BULK_INSERT_BATCH
+                )
             orders_inserted += len(insert_batch)
             conn.commit()
         except Exception as e:
             conn.rollback()
-            print(f"  ⚠ Batch insert failed, trying row by row: {str(e)}")
-            
-            # Fallback to row-by-row insert
-            for _, row in orders_merged.iterrows():
-                try:
-                    cursor.execute("""
-                        INSERT INTO ods.core_orders 
-                        (order_id, user_id, transaction_date, estimated_arrival, actual_arrival, delay_in_days, is_delayed, merchant_id, staff_id, campaign_id, availed)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (order_id) DO NOTHING
-                    """, (
-                        row['order_id'],
-                        row['user_id'],
-                        to_python_value(row['transaction_date']),
-                        to_python_value(row['estimated_arrival']),
-                        to_python_value(row['actual_arrival']),
-                        row['delay_in_days'],
-                        row['is_delayed'],
-                        to_python_str(row.get('merchant_id')),
-                        to_python_str(row.get('staff_id')),
-                        to_python_str(row.get('campaign_id')),
-                        to_python_bool(row.get('availed'))
-                    ))
-                    conn.commit()
-                    orders_inserted += 1
-                except Exception as row_error:
-                    conn.rollback()
-                    orders_skipped += 1
-                    if orders_skipped <= 5:
-                        print(f"  ⚠ Error inserting order {row['order_id']}: {str(row_error)}")
+            print(f"  ⚠ Batch insert failed: {str(e)}")
+            orders_skipped += len(insert_batch)
         
         conn.commit()
         print(f"  ✓ Chunk processed: {len(orders_merged)} orders")
@@ -367,38 +355,25 @@ def process_and_load_line_items(**context):
             
             # Use executemany for better performance
             try:
-                cursor.executemany("""
-                    INSERT INTO ods.core_line_items 
-                    (line_item_id, order_id, product_id, quantity, price)
-                    VALUES (%s, %s, %s, %s, %s)
-                """, insert_batch)
+                # OPTIMIZED: Use execute_values (10x faster than executemany)
+                for i in range(0, len(insert_batch), BULK_INSERT_BATCH):
+                    batch = insert_batch[i:i + BULK_INSERT_BATCH]
+                    psycopg2.extras.execute_values(
+                        cursor,
+                        """
+                        INSERT INTO ods.core_line_items 
+                        (line_item_id, order_id, product_id, quantity, price)
+                        VALUES %s
+                        """,
+                        batch,
+                        page_size=BULK_INSERT_BATCH
+                    )
                 items_inserted += len(insert_batch)
                 conn.commit()
             except Exception as e:
                 conn.rollback()
-                print(f"  ⚠ Batch insert failed, trying row by row: {str(e)}")
-                
-                # Fallback to row-by-row insert
-                for _, row in line_items.iterrows():
-                    try:
-                        cursor.execute("""
-                            INSERT INTO ods.core_line_items 
-                            (line_item_id, order_id, product_id, quantity, price)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (
-                            str(uuid.uuid4()),
-                            row['order_id'],
-                            row['product_id'],
-                            int(row['quantity']),
-                            float(row['price'])
-                        ))
-                        conn.commit()
-                        items_inserted += 1
-                    except Exception as row_error:
-                        conn.rollback()
-                        items_skipped += 1
-                        if items_skipped <= 5:
-                            print(f"  ⚠ Error inserting line item: {str(row_error)}")
+                print(f"  ⚠ Batch insert failed: {str(e)}")
+                items_skipped += len(insert_batch)
             
             conn.commit()
             print(f"  ✓ Chunk processed: {len(line_items)} line items")
@@ -471,10 +446,10 @@ def verify_load(**context):
 with DAG(
     'populate_core_operations',
     default_args=default_args,
-    description='Extract operations data from staging, transform, and load to ods.core_orders and ods.core_line_items',
+    description='OPTIMIZED: Extract operations data from staging, transform, and load to ODS with bulk inserts',
     schedule_interval=None,
     catchup=False,
-    tags=['etl', 'ods', 'operations', 'orders', 'line-items', 'staging-to-ods'],
+    tags=['etl', 'ods', 'operations', 'orders', 'line-items', 'staging-to-ods', 'optimized'],
 ) as dag:
     
     process_orders_task = PythonOperator(

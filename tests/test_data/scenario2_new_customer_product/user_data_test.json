@@ -1,0 +1,30 @@
+{
+  "user_id": {
+    "0": "USER99999",
+    "1": "USER99998"
+  },
+  "first_name": {
+    "0": "TestNew",
+    "1": "AnotherNew"
+  },
+  "last_name": {
+    "0": "Customer",
+    "1": "Buyer"
+  },
+  "email": {
+    "0": "testnew.customer@test.com",
+    "1": "anothernew.buyer@test.com"
+  },
+  "gender": {
+    "0": "Male",
+    "1": "Female"
+  },
+  "birthdate": {
+    "0": "1990-05-15",
+    "1": "1985-08-22"
+  },
+  "membership_status": {
+    "0": "premium",
+    "1": "verified"
+  }
+}
