@@ -153,8 +153,8 @@ with DAG(
 
     # =========================================================================
     # OPERATIONS DEPARTMENT PIPELINE (Orders, Line Items, Sales)
-    # staging → ODS → DW (fact_sales, fact_orders)
-    # This is the slowest pipeline - now runs in parallel with others!
+    # Uses STREAMING approach - processes chunks in parallel across all layers
+    # Latest data is processed first so dashboard shows recent data quickly!
     # =========================================================================
     ops_staging = TriggerDagRunOperator(
         task_id='ops_load_staging',
@@ -162,31 +162,25 @@ with DAG(
         wait_for_completion=True,
         poke_interval=10,
     )
-    ops_ods = TriggerDagRunOperator(
-        task_id='ops_load_ods',
-        trigger_dag_id='populate_core_operations',
-        wait_for_completion=True,
+    
+    # After staging loads, trigger the streaming pipeline
+    # This processes staging → ODS → DW → Facts in parallel streams
+    ops_streaming = TriggerDagRunOperator(
+        task_id='ops_streaming_pipeline',
+        trigger_dag_id='stream_operations_pipeline',
+        wait_for_completion=False,  # Don't wait - let it run in parallel!
         poke_interval=10,
     )
     ops_complete = EmptyOperator(task_id='ops_complete')
 
     # =========================================================================
-    # FACT TABLES (depend on ALL dimensions being complete)
+    # FACT TABLES FOR NON-OPERATIONS (Campaign Response)
+    # Note: Operations facts are handled by the streaming pipeline
     # =========================================================================
     all_dims_complete = EmptyOperator(task_id='all_dims_complete')
 
-    fact_sales = TriggerDagRunOperator(
-        task_id='load_fact_sales',
-        trigger_dag_id='populate_fact_sales',
-        wait_for_completion=True,
-        poke_interval=10,
-    )
-    fact_orders = TriggerDagRunOperator(
-        task_id='load_fact_orders',
-        trigger_dag_id='populate_fact_orders',
-        wait_for_completion=True,
-        poke_interval=10,
-    )
+    # Only campaign response fact needs to wait for all dims
+    # Operations facts (fact_sales, fact_orders) are handled by streaming pipeline
     fact_campaign_response = TriggerDagRunOperator(
         task_id='load_fact_campaign_response',
         trigger_dag_id='populate_fact_campaign_response',
@@ -216,9 +210,13 @@ with DAG(
     # Marketing pipeline: staging → ODS → DW
     mkt_staging >> mkt_ods >> mkt_dw >> mkt_complete
 
-    # Operations pipeline: staging → ODS (facts depend on all dims)
-    ops_staging >> ops_ods >> ops_complete
+    # Operations pipeline: staging → streaming (parallel processing)
+    # The streaming pipeline handles staging→ODS→DW→Facts in parallel!
+    ops_staging >> ops_streaming >> ops_complete
 
-    # Facts can only run after ALL dimensions are complete AND operations ODS is done
-    [biz_complete, cust_complete, ent_complete, mkt_complete, ops_complete] >> all_dims_complete
-    all_dims_complete >> [fact_sales, fact_orders, fact_campaign_response] >> end
+    # Non-operations dimensions must complete before campaign response fact
+    [biz_complete, cust_complete, ent_complete, mkt_complete] >> all_dims_complete
+    all_dims_complete >> fact_campaign_response >> end
+    
+    # Operations can complete independently (streaming handles its own facts)
+    ops_complete >> end
