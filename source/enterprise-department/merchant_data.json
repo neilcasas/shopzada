@@ -1,0 +1,52 @@
+[
+  {
+    "merchant_id": "MERCH001",
+    "creation_date": "2022-06-15",
+    "name": "TechHub Electronics",
+    "street": "Unit 101 SM Megamall",
+    "state": "Metro Manila",
+    "city": "Mandaluyong",
+    "country": "Philippines",
+    "contact_number": "+63-2-8888-1001"
+  },
+  {
+    "merchant_id": "MERCH002",
+    "creation_date": "2022-08-20",
+    "name": "FreshMart Groceries",
+    "street": "Ground Floor Ayala Center",
+    "state": "Metro Manila",
+    "city": "Makati",
+    "country": "Philippines",
+    "contact_number": "+63-2-8888-1002"
+  },
+  {
+    "merchant_id": "MERCH003",
+    "creation_date": "2023-01-10",
+    "name": "SportZone PH",
+    "street": "2nd Floor Robinson's Place",
+    "state": "Cebu",
+    "city": "Cebu City",
+    "country": "Philippines",
+    "contact_number": "+63-32-888-1003"
+  },
+  {
+    "merchant_id": "MERCH004",
+    "creation_date": "2023-03-05",
+    "name": "HomeStyle Living",
+    "street": "123 Seaside Boulevard",
+    "state": "Davao del Sur",
+    "city": "Davao City",
+    "country": "Philippines",
+    "contact_number": "+63-82-888-1004"
+  },
+  {
+    "merchant_id": "MERCH005",
+    "creation_date": "2023-05-18",
+    "name": "Fashion Forward",
+    "street": "Mall of Asia Complex",
+    "state": "Metro Manila",
+    "city": "Pasay",
+    "country": "Philippines",
+    "contact_number": "+63-2-8888-1005"
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "transaction_date": "2024-12-15",
+    "campaign_id": "CAMP001",
+    "order_id": "ORD001",
+    "estimated_arrival": "2024-12-20",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-16",
+    "campaign_id": "CAMP001",
+    "order_id": "ORD002",
+    "estimated_arrival": "2024-12-21",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-17",
+    "campaign_id": "CAMP002",
+    "order_id": "ORD003",
+    "estimated_arrival": "2024-12-22",
+    "availed": false
+  },
+  {
+    "transaction_date": "2024-12-18",
+    "campaign_id": "CAMP003",
+    "order_id": "ORD004",
+    "estimated_arrival": "2024-12-23",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-19",
+    "campaign_id": "CAMP004",
+    "order_id": "ORD005",
+    "estimated_arrival": "2024-12-24",
+    "availed": false
+  },
+  {
+    "transaction_date": "2024-12-20",
+    "campaign_id": "CAMP005",
+    "order_id": "ORD006",
+    "estimated_arrival": "2024-12-25",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-21",
+    "campaign_id": "CAMP001",
+    "order_id": "ORD007",
+    "estimated_arrival": "2024-12-26",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-22",
+    "campaign_id": "CAMP002",
+    "order_id": "ORD008",
+    "estimated_arrival": "2024-12-27",
+    "availed": false
+  },
+  {
+    "transaction_date": "2024-12-23",
+    "campaign_id": "CAMP003",
+    "order_id": "ORD009",
+    "estimated_arrival": "2024-12-28",
+    "availed": true
+  },
+  {
+    "transaction_date": "2024-12-24",
+    "campaign_id": "CAMP004",
+    "order_id": "ORD010",
+    "estimated_arrival": "2024-12-29",
+    "availed": true
+  }
+]

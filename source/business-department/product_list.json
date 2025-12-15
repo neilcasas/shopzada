@@ -1,0 +1,62 @@
+[
+  {
+    "product_id": "PROD001",
+    "product_name": "Wireless Bluetooth Headphones",
+    "product_type": "Electronics",
+    "price": 1299.99
+  },
+  {
+    "product_id": "PROD002",
+    "product_name": "Organic Green Tea",
+    "product_type": "Food & Beverages",
+    "price": 149.5
+  },
+  {
+    "product_id": "PROD003",
+    "product_name": "Running Shoes Pro",
+    "product_type": "Sports & Outdoors",
+    "price": 2499.0
+  },
+  {
+    "product_id": "PROD004",
+    "product_name": "Stainless Steel Water Bottle",
+    "product_type": "Home & Kitchen",
+    "price": 399.0
+  },
+  {
+    "product_id": "PROD005",
+    "product_name": "Laptop Stand Adjustable",
+    "product_type": "Electronics",
+    "price": 899.0
+  },
+  {
+    "product_id": "PROD006",
+    "product_name": "Cotton T-Shirt Classic",
+    "product_type": "Apparel",
+    "price": 599.0
+  },
+  {
+    "product_id": "PROD007",
+    "product_name": "USB-C Charging Cable 2m",
+    "product_type": "Electronics",
+    "price": 199.0
+  },
+  {
+    "product_id": "PROD008",
+    "product_name": "Yoga Mat Premium",
+    "product_type": "Sports & Outdoors",
+    "price": 1199.0
+  },
+  {
+    "product_id": "PROD009",
+    "product_name": "Ceramic Coffee Mug Set",
+    "product_type": "Home & Kitchen",
+    "price": 449.0
+  },
+  {
+    "product_id": "PROD010",
+    "product_name": "Protein Powder Chocolate",
+    "product_type": "Health & Wellness",
+    "price": 1599.0
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "campaign_id": "CAMP001",
+    "campaign_name": "Holiday Sale 2024",
+    "campaign_description": "Year-end holiday discounts on all electronics",
+    "discount": 0.15
+  },
+  {
+    "campaign_id": "CAMP002",
+    "campaign_name": "New Year Promo",
+    "campaign_description": "New year celebration with special bundle deals",
+    "discount": 0.1
+  },
+  {
+    "campaign_id": "CAMP003",
+    "campaign_name": "Valentine Special",
+    "campaign_description": "Couples discount on selected items",
+    "discount": 0.2
+  },
+  {
+    "campaign_id": "CAMP004",
+    "campaign_name": "Summer Blowout",
+    "campaign_description": "Beat the heat with summer essentials sale",
+    "discount": 0.25
+  },
+  {
+    "campaign_id": "CAMP005",
+    "campaign_name": "Back to School",
+    "campaign_description": "School supplies and gadgets discount",
+    "discount": 0.12
+  }
+]

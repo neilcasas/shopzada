@@ -1,0 +1,57 @@
+[
+  {
+    "staff_id": "STAFF001",
+    "name": "Roberto Tan",
+    "job_level": "Manager",
+    "street": "789 Commonwealth Ave",
+    "state": "Metro Manila",
+    "city": "Quezon City",
+    "country": "Philippines",
+    "contact_number": "+63-917-111-0001",
+    "creation_date": "2021-03-15"
+  },
+  {
+    "staff_id": "STAFF002",
+    "name": "Elena Cruz",
+    "job_level": "Supervisor",
+    "street": "456 EDSA Highway",
+    "state": "Metro Manila",
+    "city": "Mandaluyong",
+    "country": "Philippines",
+    "contact_number": "+63-917-111-0002",
+    "creation_date": "2021-06-20"
+  },
+  {
+    "staff_id": "STAFF003",
+    "name": "Michael Ramos",
+    "job_level": "Associate",
+    "street": "123 Osmeña Boulevard",
+    "state": "Cebu",
+    "city": "Cebu City",
+    "country": "Philippines",
+    "contact_number": "+63-917-111-0003",
+    "creation_date": "2022-01-10"
+  },
+  {
+    "staff_id": "STAFF004",
+    "name": "Jennifer Lee",
+    "job_level": "Senior",
+    "street": "321 Session Road",
+    "state": "Benguet",
+    "city": "Baguio City",
+    "country": "Philippines",
+    "contact_number": "+63-917-111-0004",
+    "creation_date": "2022-04-05"
+  },
+  {
+    "staff_id": "STAFF005",
+    "name": "Antonio Villanueva",
+    "job_level": "Associate",
+    "street": "654 Roxas Avenue",
+    "state": "Davao del Sur",
+    "city": "Davao City",
+    "country": "Philippines",
+    "contact_number": "+63-917-111-0005",
+    "creation_date": "2023-02-14"
+  }
+]
