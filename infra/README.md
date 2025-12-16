@@ -1,3 +1,0 @@
-# INFRA
-
-- Infrastructure related scripts
