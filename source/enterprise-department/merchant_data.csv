@@ -1,0 +1,6 @@
+merchant_id,creation_date,name,street,state,city,country,contact_number
+MERCH001,2022-06-15,TechHub Electronics,Unit 101 SM Megamall,Metro Manila,Mandaluyong,Philippines,+63-2-8888-1001
+MERCH002,2022-08-20,FreshMart Groceries,Ground Floor Ayala Center,Metro Manila,Makati,Philippines,+63-2-8888-1002
+MERCH003,2023-01-10,SportZone PH,2nd Floor Robinson's Place,Cebu,Cebu City,Philippines,+63-32-888-1003
+MERCH004,2023-03-25,HomeStyle Living,SM City Davao,Davao del Sur,Davao City,Philippines,+63-82-888-1004
+MERCH005,2023-05-18,Fashion Forward,Greenbelt 5,Metro Manila,Makati,Philippines,+63-2-8888-1005

@@ -1,0 +1,6 @@
+staff_id,name,job_level,street,state,city,country,contact_number,creation_date
+STAFF001,Roberto Tan,Manager,789 Commonwealth Ave,Metro Manila,Quezon City,Philippines,+63-917-111-0001,2021-03-15
+STAFF002,Elena Cruz,Supervisor,456 EDSA Highway,Metro Manila,Mandaluyong,Philippines,+63-917-111-0002,2021-06-20
+STAFF003,Michael Ramos,Associate,123 Osmeña Boulevard,Cebu,Cebu City,Philippines,+63-917-111-0003,2022-01-10
+STAFF004,Grace Bautista,Senior,555 JP Rizal Avenue,Metro Manila,Makati,Philippines,+63-917-111-0004,2022-04-15
+STAFF005,Mark Villanueva,Associate,888 MacArthur Highway,Davao del Sur,Davao City,Philippines,+63-917-111-0005,2022-08-20

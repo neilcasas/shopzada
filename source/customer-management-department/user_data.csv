@@ -1,0 +1,6 @@
+user_id,name,gender,birthdate,street,city,state,country,device_address,creation_date,user_type
+USR001,Maria Santos,Female,1990-05-15,123 Rizal Street,Makati,Metro Manila,Philippines,AA:BB:CC:DD:EE:01,2023-01-10,Premium
+USR002,Juan Dela Cruz,Male,1985-08-22,456 Bonifacio Avenue,Quezon City,Metro Manila,Philippines,AA:BB:CC:DD:EE:02,2023-02-14,Regular
+USR003,Angela Reyes,Female,1995-12-03,789 Mabini Boulevard,Cebu City,Cebu,Philippines,AA:BB:CC:DD:EE:03,2023-03-20,Premium
+USR004,Carlos Garcia,Male,1988-03-17,321 Luna Street,Davao City,Davao del Sur,Philippines,AA:BB:CC:DD:EE:04,2023-04-05,Regular
+USR005,Patricia Lim,Female,1992-07-28,654 Aguinaldo Highway,Tagaytay,Cavite,Philippines,AA:BB:CC:DD:EE:05,2023-05-12,Premium
